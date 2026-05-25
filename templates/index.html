@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能问答系统</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/1.3.4/axios.min.js"></script>
+    <style>
+        body {
+            font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        .header {
+            background-color: #1890ff;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 8px 8px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 1.5rem;
+        }
+        .chat-area {
+            flex: 1;
+            background-color: white;
+            border-left: 1px solid #e8e8e8;
+            border-right: 1px solid #e8e8e8;
+            overflow-y: auto;
+            padding: 20px;
+        }
+        .message {
+            margin-bottom: 15px;
+            display: flex;
+        }
+        .user-message {
+            justify-content: flex-end;
+        }
+        .bot-message {
+            justify-content: flex-start;
+        }
+        .message-content {
+            max-width: 70%;
+            padding: 10px 15px;
+            border-radius: 18px;
+            word-wrap: break-word;
+        }
+        .user-message .message-content {
+            background-color: #1890ff;
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+        .bot-message .message-content {
+            background-color: #f0f0f0;
+            color: #333;
+            border-bottom-left-radius: 4px;
+        }
+        .input-area {
+            display: flex;
+            padding: 15px;
+            background-color: white;
+            border-top: 1px solid #e8e8e8;
+            border-radius: 0 0 8px 8px;
+        }
+        .input-area input {
+            flex: 1;
+            padding: 10px 15px;
+            border: 1px solid #d9d9d9;
+            border-radius: 4px;
+            font-size: 1rem;
+            margin-right: 10px;
+        }
+        .input-area button {
+            background-color: #1890ff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 10px 20px;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+        .input-area button:hover {
+            background-color: #40a9ff;
+        }
+        .input-area button:disabled {
+            background-color: #bfbfbf;
+            cursor: not-allowed;
+        }
+        .typing-indicator {
+            display: flex;
+            padding: 10px 15px;
+        }
+        .typing-indicator span {
+            height: 8px;
+            width: 8px;
+            background-color: #bbb;
+            border-radius: 50%;
+            display: inline-block;
+            margin: 0 2px;
+            animation: typing 1s infinite;
+        }
+        .typing-indicator span:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+        .typing-indicator span:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+        @keyframes typing {
+            0% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+            100% { transform: translateY(0); }
+        }
+        .system-message {
+            text-align: center;
+            color: #999;
+            margin: 10px 0;
+            font-size: 0.9rem;
+        }
+        .debug-panel {
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            margin-top: 10px;
+            display: none;
+        }
+        .debug-toggle {
+            background: none;
+            border: none;
+            color: #1890ff;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>智能信息查询助手</h1>
+            <button class="debug-toggle" onclick="toggleDebug()">调试面板</button>
+        </div>
+        <div class="chat-area" id="chatArea">
+            <div class="message bot-message">
+                <div class="message-content">
+                    您好！我是您的智能助手，可以帮您查询相关信息。请问有什么可以帮您？
+                </div>
+            </div>
+        </div>
+        <div class="debug-panel" id="debugPanel">
+            <h3>调试信息</h3>
+            <div id="debugInfo"></div>
+        </div>
+        <div class="input-area">
+            <input type="text" id="userInput" placeholder="请输入您的问题..." onkeypress="handleKeyPress(event)">
+            <button id="sendButton" onclick="sendMessage()">发送</button>
+        </div>
+    </div>
+
+    <script>
+        let isProcessing = false;
+
+        function toggleDebug() {
+            const debugPanel = document.getElementById('debugPanel');
+            if (debugPanel.style.display === 'none' || debugPanel.style.display === '') {
+                debugPanel.style.display = 'block';
+            } else {
+                debugPanel.style.display = 'none';
+            }
+        }
+
+        function appendMessage(content, isUser) {
+            const chatArea = document.getElementById('chatArea');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = isUser ? 'message user-message' : 'message bot-message';
+
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+            contentDiv.textContent = content;
+
+            messageDiv.appendChild(contentDiv);
+            chatArea.appendChild(messageDiv);
+            chatArea.scrollTop = chatArea.scrollHeight;
+        }
+
+        function appendDebugInfo(info) {
+            const debugInfo = document.getElementById('debugInfo');
+            const p = document.createElement('p');
+            p.textContent = info;
+            debugInfo.appendChild(p);
+        }
+
+        function showTypingIndicator() {
+            const chatArea = document.getElementById('chatArea');
+            const typingDiv = document.createElement('div');
+            typingDiv.className = 'message bot-message';
+            typingDiv.id = 'typingIndicator';
+
+            const typingContent = document.createElement('div');
+            typingContent.className = 'typing-indicator';
+            for (let i = 0; i < 3; i++) {
+                const dot = document.createElement('span');
+                typingContent.appendChild(dot);
+            }
+
+            typingDiv.appendChild(typingContent);
+            chatArea.appendChild(typingDiv);
+            chatArea.scrollTop = chatArea.scrollHeight;
+        }
+
+        function removeTypingIndicator() {
+            const typingIndicator = document.getElementById('typingIndicator');
+            if (typingIndicator) {
+                typingIndicator.remove();
+            }
+        }
+
+        function sendMessage() {
+            if (isProcessing) return;
+
+            const userInput = document.getElementById('userInput');
+            const query = userInput.value.trim();
+
+            if (query === '') return;
+
+            appendMessage(query, true);
+            userInput.value = '';
+
+            isProcessing = true;
+            document.getElementById('sendButton').disabled = true;
+            showTypingIndicator();
+
+            // API调用
+            axios.post('/api/chat', { query: query })
+                .then(response => {
+                    removeTypingIndicator();
+                    appendMessage(response.data.answer, false);
+
+                    // 显示调试信息
+                    if (response.data.debug) {
+                        appendDebugInfo(`Coze 查询: ${JSON.stringify(response.data.debug.coze_queries)}`);
+                        appendDebugInfo(`Milvus 上下文: ${JSON.stringify(response.data.debug.milvus_context)}`);
+                    }
+                })
+                .catch(error => {
+                    removeTypingIndicator();
+                    appendMessage('抱歉，处理您的请求时出现了问题，请稍后再试。', false);
+                    console.error('Error:', error);
+                })
+                .finally(() => {
+                    isProcessing = false;
+                    document.getElementById('sendButton').disabled = false;
+                });
+        }
+
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+    </script>
+</body>
+</html>
