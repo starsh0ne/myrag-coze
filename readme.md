@@ -8,7 +8,6 @@
 用户查询 → Coze API (查询分解) → Milvus (向量检索) → LLM (答案生成) → 返回结果
 ```
 
-![Coze 工作流](./pic/rag_coze.png)
 
 ## 功能特点
 
